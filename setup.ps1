@@ -9,9 +9,8 @@ function Test-Font {
     param (
         [string]$FontName
     )
-    $fonts = New-Object System.Drawing.Text.InstalledFontCollection
-    $fontFamilies = $fonts.Families
-    return ($fontFamilies | Where-Object { $_.Name -eq $FontName }) -ne $null
+    $fontKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+    return (Get-ItemProperty -Path $fontKey -Name "*$FontName*" -ErrorAction SilentlyContinue) -ne $null
 }
 
 # Function to install a Nerd Font
@@ -52,11 +51,17 @@ winget install JanDeDobbeleer.OhMyPosh -e
 
 # Install PSReadLine
 Write-Host "Installing PSReadLine..."
-Install-Module -Name PSReadLine -AllowPrerelease -Force
+if (Get-Module -ListAvailable -Name PSReadLine) {
+    Update-Module -Name PSReadLine -Force
+} else {
+    Install-Module -Name PSReadLine -Force -SkipPublisherCheck
+}
 
 # Install Terminal-Icons
 Write-Host "Installing Terminal-Icons..."
-Install-Module -Name Terminal-Icons -Repository PSGallery -Force
+if (-not (Get-Module -ListAvailable -Name Terminal-Icons)) {
+    Install-Module -Name Terminal-Icons -Repository PSGallery -Force
+}
 
 # Check and install Nerd Font
 $nerdFonts = @(
@@ -83,19 +88,24 @@ $profileContent = @"
 oh-my-posh init pwsh --config "$env:POSH_THEMES_PATH\agnoster.omp.json" | Invoke-Expression
 
 # PSReadLine configuration
-Set-PSReadLineOption -PredictionSource History
-Set-PSReadLineOption -PredictionViewStyle ListView
-Set-PSReadLineOption -EditMode Emacs
+if (Get-Module -ListAvailable -Name PSReadLine) {
+    Import-Module PSReadLine
+    Set-PSReadLineOption -PredictionSource History
+    Set-PSReadLineOption -PredictionViewStyle ListView
+    Set-PSReadLineOption -EditMode Emacs
+}
 
 # Import Terminal-Icons
-Import-Module Terminal-Icons
+if (Get-Module -ListAvailable -Name Terminal-Icons) {
+    Import-Module Terminal-Icons
+}
 "@
 
 $profilePath = $PROFILE.CurrentUserCurrentHost
 if (!(Test-Path -Path $profilePath)) {
     New-Item -ItemType File -Path $profilePath -Force
 }
-Add-Content -Path $profilePath -Value $profileContent
+Set-Content -Path $profilePath -Value $profileContent
 
 # Update Oh My Posh to the latest version
 Write-Host "Updating Oh My Posh..."
